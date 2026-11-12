@@ -12,14 +12,14 @@ ROMFS       := romfs
 APP_TITLE   := SKATER+ Patcher
 APP_DESCRIPTION := Install or remove the SKATER+ browser patch
 APP_AUTHOR  := shima0625
-# CIA title version: (major << 10) | (minor << 4) | micro = 0.1.0.
-APP_TITLE_VERSION := 16
+# CIA title version: (major << 10) | (minor << 4) | micro = 0.1.1.
+APP_TITLE_VERSION := 17
 
 ARCH        := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 CFLAGS      := -g -Wall -Wextra -Werror -O2 -mword-relocations -ffunction-sections $(ARCH)
 CFLAGS      += $(INCLUDE) -D__3DS__
 LDFLAGS     := -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map),--gc-sections
-LIBS        := -lmbedx509 -lmbedcrypto -lctru -lm
+LIBS        := -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lz -lctru -lm
 LIBDIRS     := $(PORTLIBS) $(CTRULIB)
 
 ifneq ($(BUILD),$(notdir $(CURDIR)))
@@ -45,6 +45,8 @@ cia: all
 
 $(BUILD):
 	@mkdir -p $@
+
+
 
 clean:
 	@rm -rf $(BUILD) $(TARGET).elf $(TARGET).3dsx $(TARGET).smdh $(TARGET).cia

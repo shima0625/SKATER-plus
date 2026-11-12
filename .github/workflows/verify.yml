@@ -15,12 +15,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install unicorn==2.1.4
+      - run: python -m pip install unicorn==2.1.4 cryptography==48.0.1
       - run: python scripts/verify_regional_tls_build.py
       - run: python scripts/emulate_clienthello_hook.py
       - run: python scripts/emulate_client_key_exchange.py
+      - run: python scripts/emulate_ecdh_acceleration.py
+      - run: python scripts/emulate_aes_acceleration.py
       - run: python scripts/emulate_jpn_first_run.py
+      - run: python scripts/emulate_certificate_bridge.py --elf-only
       - run: python scripts/verify_public_tree.py
+      - name: Test update metadata parser
+        run: |
+          gcc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -Ipatcher/include patcher/source/update_manifest.c patcher/tests/test_update_manifest.c -o /tmp/skater-update-test
+          /tmp/skater-update-test
+          gcc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -Ipatcher/include patcher/source/update_roots.c patcher/source/sha256.c patcher/tests/test_update_roots.c -o /tmp/skater-update-roots-test
+          /tmp/skater-update-roots-test
+          gcc -std=gnu11 -Wall -Wextra -Werror -pthread -fsanitize=address,undefined -Ipatcher/tests/updater_stubs -Ipatcher/include patcher/source/updater.c patcher/source/update_manifest.c patcher/source/sha256.c patcher/tests/test_updater.c -o /tmp/skater-updater-test
+          testdir=$(mktemp -d)
+          cd "$testdir"
+          /tmp/skater-updater-test
       - run: sudo apt-get update && sudo apt-get install -y libmbedtls-dev
       - name: Test SD certificate parser
         run: |

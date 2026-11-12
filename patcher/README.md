@@ -16,10 +16,10 @@ The CIA optionally removes itself after a successful install. Reinstall it to
 remove the patch later. Pre-existing files at managed paths are backed up under
 `sdmc:/3ds/skater-plus-patcher/`, but are not restored automatically.
 
-Press **Y** when the patch is installed to import self-signed PEM CA roots from
+Press **L** when the patch is installed to import self-signed PEM CA roots from
 `sdmc:/3ds/skater-plus-patcher/certs/`. See [Certificates](../docs/CERTIFICATES.md).
 
-Build with devkitARM/libctru, devkitPro's `3ds-mbedtls`, and the included runtime assets:
+Build with devkitARM/libctru, devkitPro's `3ds-mbedtls`, `3ds-curl`, and `3ds-zlib`, and the included runtime assets:
 
 ```text
 make -C patcher

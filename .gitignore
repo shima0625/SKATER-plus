@@ -6,6 +6,7 @@ build/
 dist/
 backups/
 patcher/build/
+patcher/build-update-011/
 patcher/*.elf
 patcher/*.smdh
 patcher/*.cci
@@ -20,3 +21,12 @@ patcher/exheader.bin
 *.dmp
 *.log
 
+
+
+# Browser-engine experiments are separate from the TLS release.
+payload/js-engine-experiment/
+docs/JS_ENGINE_REPLACEMENT*.md
+docs/WEB_COMPATIBILITY*.md
+docs/diagnostics/
+docs/TLS_DIAGNOSTICS*.md
+scripts/hardware_tls_matrix.py

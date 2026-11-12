@@ -24,7 +24,7 @@ typedef struct { OSSLCertInfo *info; OSSLAlgor *sig_alg;
 _Static_assert(sizeof(void *) == 4, "3DS ARM32 ABI required");
 _Static_assert(offsetof(OSSLCertInfo, enc) == 0x28, "TBS offset");
 
-extern int ec_verify_certificate_signature_parts(unsigned, const unsigned char *, size_t,
+extern int ec_verify_certificate_signature_parts(unsigned, unsigned, const unsigned char *, size_t,
                                                  const unsigned char *, size_t,
                                                  const unsigned char *, size_t);
 
@@ -46,6 +46,7 @@ int p384_verify_pair(const OSSLCert *subject, const OSSLCert *issuer)
 {
     static const unsigned char ecdsa_sha256[] = {0x2a,0x86,0x48,0xce,0x3d,0x04,0x03,0x02};
     static const unsigned char ecdsa_sha384[] = {0x2a,0x86,0x48,0xce,0x3d,0x04,0x03,0x03};
+    static const unsigned char ecdsa_sha512[] = {0x2a,0x86,0x48,0xce,0x3d,0x04,0x03,0x04};
     static const unsigned char ec_public_key[] = {0x2a,0x86,0x48,0xce,0x3d,0x02,0x01};
     static const unsigned char secp256r1[] = {0x2a,0x86,0x48,0xce,0x3d,0x03,0x01,0x07};
     static const unsigned char secp384r1[] = {0x2b,0x81,0x04,0x00,0x22};
@@ -64,11 +65,23 @@ int p384_verify_pair(const OSSLCert *subject, const OSSLCert *issuer)
         else if (oid_is(key_alg->parameter->value.object, secp384r1, sizeof(secp384r1)))
             bits = 384;
     }
-    const unsigned char *sig_oid = bits == 256 ? ecdsa_sha256 : ecdsa_sha384;
-    const size_t sig_oid_len = bits == 256 ? sizeof(ecdsa_sha256) : sizeof(ecdsa_sha384);
-    if (!bits ||
+    /* The issuer curve does not determine the certificate signature hash.
+     * For example RapidSSL TLS ECC CA G1 uses P-384 with SHA-256. */
+    const unsigned char *sig_oid = NULL;
+    unsigned digest_bits = 0;
+    if (oid_is(subject->sig_alg->algorithm, ecdsa_sha256, sizeof(ecdsa_sha256))) {
+        sig_oid = ecdsa_sha256; digest_bits = 256;
+    } else if (oid_is(subject->sig_alg->algorithm, ecdsa_sha384, sizeof(ecdsa_sha384))) {
+        sig_oid = ecdsa_sha384; digest_bits = 384;
+    } else if (oid_is(subject->sig_alg->algorithm, ecdsa_sha512, sizeof(ecdsa_sha512))) {
+        sig_oid = ecdsa_sha512; digest_bits = 512;
+    }
+    const size_t sig_oid_len = sizeof(ecdsa_sha256);
+    if (!bits || !digest_bits ||
         !oid_is(subject->sig_alg->algorithm, sig_oid, sig_oid_len) ||
         !oid_is(si->signature->algorithm, sig_oid, sig_oid_len) ||
+        /* RFC 5758: ECDSA signature AlgorithmIdentifier parameters absent. */
+        subject->sig_alg->parameter || si->signature->parameter ||
         !oid_is(key_alg->algorithm, ec_public_key, sizeof(ec_public_key)) ||
         !key_alg->parameter || key_alg->parameter->type != 6 ||
         !name_equal(si->issuer, ii->subject) ||
@@ -77,7 +90,7 @@ int p384_verify_pair(const OSSLCert *subject, const OSSLCert *issuer)
         sig->length > 256 || !key->data || key->length != (bits == 256 ? 65 : 97) ||
         ((unsigned long)key->flags & 7u) != 0)
         return 0;
-    return ec_verify_certificate_signature_parts(bits, si->enc.enc, (size_t)si->enc.len,
+    return ec_verify_certificate_signature_parts(bits, digest_bits, si->enc.enc, (size_t)si->enc.len,
                                                  sig->data, (size_t)sig->length,
                                                  key->data, (size_t)key->length);
 }

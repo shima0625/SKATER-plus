@@ -11,9 +11,12 @@
 #include "pxi_romfs.h"
 #include "roots.h"
 #include "sha256.h"
+#include "updater.h"
+#include "update_manifest.h"
+#include "update_roots.h"
 
 #define PATCHER_TITLE_ID UINT64_C(0x000400000F5A5400)
-#define PATCHER_BUILD "0.1.0"
+#define PATCHER_BUILD SKATER_VERSION
 #define STATE_DIR "sdmc:/3ds/skater-plus-patcher"
 #define STATE_PATH STATE_DIR "/state.bin"
 #define BACKUP_DIR STATE_DIR "/backup"
@@ -36,14 +39,20 @@ typedef struct {
 } State;
 
 static bool detected_active_patch;
+static bool detected_legacy_patch;
 static bool patcher_uninstalled;
 static const char *detect_stage="title list";
 static char verify_detail[96];
 
 static const u8 source_raw_sha[32]={0xbd,0xd4,0x28,0xc3,0x71,0x71,0x7b,0x07,0x41,0xcc,0xfc,0x11,0x8b,0xab,0xb3,0x55,0xbf,0xb6,0xd2,0xf3,0x58,0x5b,0xac,0xe2,0xe4,0xdd,0xee,0xe2,0x72,0x3c,0x87,0xde};
-static const u8 target_raw_sha[32]={0xeb,0xec,0xae,0x61,0x02,0xc5,0x21,0xd8,0x61,0x24,0xe9,0x15,0x46,0x95,0xf4,0xe7,0x87,0xb8,0xed,0x33,0x6d,0x11,0x84,0xc3,0x63,0x27,0x93,0x23,0x2d,0xe0,0x52,0x14};
+static const u8 legacy_target_raw_sha[32]={0xeb,0xec,0xae,0x61,0x02,0xc5,0x21,0xd8,0x61,0x24,0xe9,0x15,0x46,0x95,0xf4,0xe7,0x87,0xb8,0xed,0x33,0x6d,0x11,0x84,0xc3,0x63,0x27,0x93,0x23,0x2d,0xe0,0x52,0x14};
+static const u8 previous_target_raw_sha[32]={0x03,0xbe,0x55,0x74,0xd6,0x1b,0xf5,0x3b,0x5a,0xac,0xc7,0x28,0x50,0xd9,0x5f,0x60,0x0d,0xc6,0x8e,0x97,0xf5,0x01,0xa9,0xb7,0x2a,0xe8,0x83,0xa3,0x68,0xeb,0xe2,0x5a};
+static const u8 certfast_target_raw_sha[32]={0x0e,0xbe,0xc4,0xb3,0x4e,0x28,0x17,0x9b,0x70,0xae,0xa2,0x3e,0xb3,0x61,0xde,0xe3,0x76,0x0f,0x82,0xc1,0x48,0x2c,0xb3,0xf1,0x4d,0xbe,0x6b,0x69,0x60,0x04,0x8a,0xda};
+static const u8 ecdhfast_target_raw_sha[32]={0xd5,0xe9,0x2f,0xfa,0x2a,0xdd,0xdd,0xab,0x86,0xe9,0x57,0x7c,0xb3,0x75,0x1e,0x35,0x9c,0xa5,0x64,0x6b,0x93,0xa6,0xd2,0x7e,0xd3,0x7a,0xa5,0xfb,0x41,0x7c,0xcb,0xfe};
+static const u8 target_raw_sha[32]={0xea,0x80,0xe6,0x8d,0x35,0xa6,0x69,0xd3,0xbc,0x44,0xfe,0xe6,0xf8,0x8d,0x4a,0x1c,0xb9,0xc5,0x52,0x48,0xaa,0x81,0xc2,0xb1,0xd1,0x12,0x5d,0x8a,0x1f,0xa1,0x7b,0x4a};
 static const u8 stock_root_sha[32]={0x3d,0x7e,0x05,0x3f,0xb7,0xb8,0xad,0x42,0x5a,0xb7,0xc0,0xae,0x45,0x23,0xb8,0x37,0x16,0x3c,0xa9,0xd4,0x36,0xf8,0xbf,0xe4,0x3c,0x8f,0xe7,0x30,0x63,0x6d,0x04,0xe2};
-static const u8 target_root_sha[32]={0x77,0xd8,0xb6,0x98,0x54,0x42,0xf7,0x4b,0xda,0xd3,0x65,0x5f,0xd1,0x6d,0x87,0x1b,0xaf,0xc0,0x24,0x0a,0xb4,0xcf,0x0b,0x29,0x02,0xf1,0xe0,0x89,0xfc,0xeb,0x68,0x65};
+static const u8 legacy_target_root_sha[32]={0x77,0xd8,0xb6,0x98,0x54,0x42,0xf7,0x4b,0xda,0xd3,0x65,0x5f,0xd1,0x6d,0x87,0x1b,0xaf,0xc0,0x24,0x0a,0xb4,0xcf,0x0b,0x29,0x02,0xf1,0xe0,0x89,0xfc,0xeb,0x68,0x65};
+static const u8 target_root_sha[32]={0x35,0xbe,0x1b,0xeb,0x9a,0xc3,0xb1,0x7f,0x12,0x8c,0x16,0x79,0x2d,0xae,0x3c,0xe0,0xfb,0xe0,0x23,0x0a,0x7c,0x8a,0xa2,0xd4,0x7e,0x50,0x00,0x84,0xf4,0xf7,0xe7,0xf0};
 static const u8 target_crr_sha[32]={0x86,0x71,0x2c,0x50,0xa3,0xe4,0xc6,0x25,0x6d,0x8c,0xc8,0x1a,0x4b,0x61,0x33,0x1d,0x6e,0x9a,0x1c,0x46,0x67,0x69,0x41,0xe0,0x06,0x42,0x89,0xff,0x81,0x1f,0x54,0x22};
 static const u8 stock_crr_identity[32]={0xaf,0x7d,0x27,0x13,0x33,0x7f,0x09,0xd5,0xf2,0x29,0xae,0x2a,0xfc,0x1d,0xbe,0xe9,0x06,0x4b,0x7a,0x00,0xd3,0x84,0x30,0x69,0xba,0xcf,0xbc,0xb2,0x89,0x82,0xd3,0x3e};
 static const u8 target_crr_identity[32]={0x61,0xf2,0x85,0x80,0x86,0xe6,0xda,0xf2,0x1b,0x80,0x25,0xf5,0x66,0x25,0x6e,0xc3,0x8e,0x60,0x3e,0x7d,0x29,0x42,0x6e,0xe2,0xf5,0x4b,0xef,0x8f,0x31,0x08,0xf6,0x95};
@@ -118,7 +127,21 @@ static int copy_file(const char *from, const char *to) {
     free(data); return rc;
 }
 
+static int write_if_changed(const char *path,const void *data,size_t size) {
+    u8 *current=NULL;
+    size_t current_size=0;
+    bool same=read_file(path,&current,&current_size)==0 &&
+              current_size==size && !memcmp(current,data,size);
+    free(current);
+    return same ? 0 : write_atomic(path,data,size);
+}
+
 static bool hash_is(const void *data,size_t size,const u8 wanted[32]) { u8 got[32]; sha256_buffer(data,size,got); return memcmp(got,wanted,32)==0; }
+static bool legacy_cro(const void *data,size_t size) {
+    u8 got[32]; sha256_buffer(data,size,got);
+    return !memcmp(got,legacy_target_raw_sha,32) || !memcmp(got,previous_target_raw_sha,32) ||
+           !memcmp(got,certfast_target_raw_sha,32) || !memcmp(got,ecdhfast_target_raw_sha,32);
+}
 
 static void title_paths(u64 title, char out[FILE_COUNT][192]) {
     char base[128]; snprintf(base,sizeof(base),"sdmc:/luma/titles/%016llX",(unsigned long long)title);
@@ -137,7 +160,7 @@ static void roots_hash_path(unsigned region,char path[160]) {
 }
 
 static bool roots_file_matches(unsigned region,const char *path) {
-    if (file_matches(path,target_root_sha)) return true;
+    if (file_matches(path,target_root_sha) || file_matches(path,legacy_target_root_sha)) return true;
     char registry[160]; roots_hash_path(region,registry);
     u8 *hashes=NULL; size_t count=0;
     if (read_file(registry,&hashes,&count)) return false;
@@ -174,7 +197,12 @@ static int build_target_crr(const u8 *source,size_t size,u8 **targetp,size_t *ta
 
 static bool cro_matches(const char *path) {
     u8 *packed=NULL,*raw=NULL; size_t packed_size=0,raw_size=0;
-    bool ok=read_file(path,&packed,&packed_size)==0 && lz11_decompress(packed,packed_size,&raw,&raw_size)==0 && hash_is(raw,raw_size,target_raw_sha);
+    bool ok=false;
+    if (read_file(path,&packed,&packed_size)==0 && lz11_decompress(packed,packed_size,&raw,&raw_size)==0) {
+        bool legacy=legacy_cro(raw,raw_size);
+        if (legacy) detected_legacy_patch=true;
+        ok=legacy || hash_is(raw,raw_size,target_raw_sha);
+    }
     free(packed); free(raw); return ok;
 }
 
@@ -223,7 +251,10 @@ static bool mounted_browser_is_supported(void) {
     else if ((rc=lz11_decompress(packed,packed_n,&raw,&raw_n))!=0)
         snprintf(verify_detail,sizeof(verify_detail),"LZ11 failed (%d), packed=%lu",rc,(unsigned long)packed_n);
     else {
-        if (hash_is(raw,raw_n,target_raw_sha)) { detected_active_patch=true; ok=true; }
+        if (hash_is(raw,raw_n,target_raw_sha) || legacy_cro(raw,raw_n)) {
+            detected_active_patch=true; ok=true;
+            detected_legacy_patch=legacy_cro(raw,raw_n);
+        }
         else ok=hash_is(raw,raw_n,source_raw_sha);
         if (!ok) {
             u8 digest[32]; sha256_buffer(raw,raw_n,digest);
@@ -291,6 +322,27 @@ static int prepare_state(unsigned region,const char paths[FILE_COUNT][192],State
     return write_atomic(STATE_PATH,state,sizeof(*state));
 }
 
+/* Keep registered user roots when moving from a recognized release. */
+static int retain_imported_roots(unsigned region,u8 **bundle,size_t *size) {
+    const u64 titles[]={regions[region].base_title,regions[region].update_title};
+    u8 *selected=NULL,selected_hash[32]; size_t selected_size=0;
+    for (unsigned t=0;t<2;t++) for (unsigned i=0;i<sizeof(patch_artifacts)/sizeof(patch_artifacts[0]);i++) {
+        if (patch_artifacts[i].kind!=ART_ROOTS) continue;
+        char path[192]; artifact_path(titles[t],&patch_artifacts[i],path);
+        if (!file_exists(path)) continue;
+        u8 *old=NULL; size_t n=0;
+        if (!roots_file_matches(region,path) || read_file(path,&old,&n)) { free(selected); return -1; }
+        if (hash_is(old,n,target_root_sha) || hash_is(old,n,legacy_target_root_sha)) { free(old); continue; }
+        if (selected) {
+            bool same=hash_is(old,n,selected_hash); free(old);
+            if (!same) { free(selected); printf("Conflicting imported root bundles.\n"); return -1; }
+        } else { selected=old; selected_size=n; sha256_buffer(old,n,selected_hash); }
+    }
+    if (!selected) return 0;
+    u8 bases[64]; memcpy(bases,target_root_sha,32); memcpy(bases+32,legacy_target_root_sha,32);
+    int rc=update_roots_merge(selected,selected_size,bases,bundle,size); free(selected); return rc;
+}
+
 static int install_patch(unsigned region) {
     printf("\nRegion: %s\nReading official browser files...\n",regions[region].name);
     u8 *packed=NULL,*source=NULL,*delta=NULL,*target=NULL,*stock_roots=NULL,*suffix=NULL,*stock_crr=NULL,*target_crr=NULL,*code=NULL;
@@ -312,6 +364,9 @@ static int install_patch(unsigned region) {
         stock_roots=roots; memcpy(stock_roots+roots_n,suffix,suffix_n); roots_n+=suffix_n;
     }
     if (!hash_is(stock_roots,roots_n,target_root_sha)) { printf("Root bundle validation failed.\n"); goto done; }
+    if (detected_active_patch && retain_imported_roots(region,&stock_roots,&roots_n)) {
+        printf("Imported roots could not be preserved.\nUpdate stopped; existing files kept.\n"); goto done;
+    }
     int crr_rc=read_browser_file(".crr/static.crr",&stock_crr,&stock_crr_n);
     if (crr_rc) { printf("CRR read failed: %d\n",crr_rc); goto done; }
     crr_rc=build_target_crr(stock_crr,stock_crr_n,&target_crr,&target_crr_n);
@@ -328,10 +383,20 @@ static int install_patch(unsigned region) {
     char paths[FILE_COUNT][192]; title_paths(regions[region].base_title,paths); State state;
     if (make_title_dirs(regions[region].base_title) || prepare_state(region,paths,&state)) { printf("Could not create a safe backup state.\n"); goto done; }
     printf("Writing verified Luma patch...\n");
-    if (write_atomic(paths[FILE_CODE],code,code_n) || write_atomic(paths[FILE_CRR],target_crr,target_crr_n) || write_atomic(paths[FILE_ROOTS],stock_roots,roots_n)) goto write_fail;
-    char temp[224]; snprintf(temp,sizeof(temp),"%s.tmp",paths[FILE_CRO]); remove(temp);
-    if (lz11_write_literals(temp,target,target_n)) goto write_fail;
-    remove(paths[FILE_CRO]); if (rename(temp,paths[FILE_CRO])) goto write_fail;
+    if (lz11_pack_literals(target,target_n,&packed,&packed_n)) goto write_fail;
+    if (write_if_changed(paths[FILE_CODE],code,code_n) ||
+        write_if_changed(paths[FILE_CRR],target_crr,target_crr_n) ||
+        write_if_changed(paths[FILE_ROOTS],stock_roots,roots_n) ||
+        write_if_changed(paths[FILE_CRO],packed,packed_n)) goto write_fail;
+    if (detected_active_patch) {
+        char registry[160]; u8 hashes[64]; roots_hash_path(region,registry);
+        sha256_buffer(stock_roots,roots_n,hashes); memcpy(hashes+32,hashes,32);
+        u8 *previous=NULL; size_t previous_size=0;
+        if (!read_file(registry,&previous,&previous_size) && (previous_size==32 || previous_size==64))
+            memcpy(hashes+32,previous,32);
+        free(previous);
+        if (write_if_changed(registry,hashes,sizeof(hashes))) goto write_fail;
+    }
     printf("\x1b[32mInstall complete.\x1b[0m\nEnable Luma game patching, then launch the browser.\n"); rc=0; goto done;
 write_fail: printf("Write failed. Any displaced files remain in the backup directory.\n");
 done:
@@ -346,11 +411,14 @@ static bool known_patch_at_title(unsigned region,u64 title) {
     return true;
 }
 
-static void remove_known_patch_at_title(unsigned region,u64 title) {
+static int remove_known_patch_at_title(unsigned region,u64 title) {
     for (unsigned i=0;i<sizeof(patch_artifacts)/sizeof(patch_artifacts[0]);i++) {
         char path[192]; artifact_path(title,&patch_artifacts[i],path);
-        if (file_exists(path) && patch_artifact_is_ours(region,patch_artifacts[i].kind,path)) remove(path);
+        if (file_exists(path) && patch_artifact_is_ours(region,patch_artifacts[i].kind,path) && remove(path)) {
+            printf("Could not remove: %s\nError: %d\n",path,errno); return -1;
+        }
     }
+    return 0;
 }
 
 static int remove_active_patch(unsigned region) {
@@ -360,7 +428,7 @@ static int remove_active_patch(unsigned region) {
             printf("Patch files differ; removal stopped.\n");
             return -1;
         }
-    for (unsigned i=0;i<sizeof(titles)/sizeof(titles[0]);i++) remove_known_patch_at_title(region,titles[i]);
+    for (unsigned i=0;i<sizeof(titles)/sizeof(titles[0]);i++) if (remove_known_patch_at_title(region,titles[i])) return -1;
     char registry[160]; roots_hash_path(region,registry); remove(registry);
     bool backups=false;
     for (unsigned i=0;i<FILE_COUNT;i++) {
@@ -536,7 +604,41 @@ static void maybe_self_delete(void) {
     }}
 }
 
-int main(void) {
+static int update_browser_patch(unsigned region) {
+    char canonical[FILE_COUNT][192]; title_paths(regions[region].base_title,canonical);
+    const u64 titles[]={regions[region].base_title,regions[region].update_title};
+    char aliases[16][192]; u8 digests[16][32]; unsigned count=0;
+    for (unsigned t=0;t<2;t++) {
+        if (!known_patch_at_title(region,titles[t])) { printf("Unknown patch files; update stopped.\n"); return -1; }
+        for (unsigned i=0;i<sizeof(patch_artifacts)/sizeof(patch_artifacts[0]);i++) {
+            char path[192]; artifact_path(titles[t],&patch_artifacts[i],path);
+            if (!file_exists(path)) continue;
+            bool standard=false;
+            for (unsigned j=0;j<FILE_COUNT;j++) if (!strcmp(path,canonical[j])) standard=true;
+            if (!standard) {
+                u8 *data=NULL; size_t n=0;
+                if (count>=16 || read_file(path,&data,&n)) return -1;
+                snprintf(aliases[count],sizeof(aliases[count]),"%s",path);
+                sha256_buffer(data,n,digests[count]); free(data); count++;
+            }
+        }
+    }
+    if (install_patch(region)) return -1;
+    for (unsigned i=0;i<count;i++) if (!file_matches(aliases[i],digests[i]) || remove(aliases[i])) {
+        printf("Could not remove the old override: %s\n",aliases[i]); return -1;
+    }
+    return 0;
+}
+
+static void wait_for_menu(void) {
+    printf("\nB  Return to menu\n");
+    while (aptMainLoop()) { hidScanInput(); if (hidKeysDown()&KEY_B) return; gspWaitForVBlank(); }
+}
+
+int main(int argc,char **argv) {
+    osSetSpeedupEnable(true);
+    const char *launch_path=argc>0 ? argv[0] : NULL;
+    bool updated=false;
     gfxInitDefault(); consoleInit(GFX_BOTTOM,NULL); printf("\x1b[2J\x1b[1;1HSKATER+ Patcher\nBuild: %s\n\n",PATCHER_BUILD);
     Result luma_result=0;
     int game_patching=game_patching_status(&luma_result);
@@ -547,6 +649,8 @@ int main(void) {
         goto exit_wait;
     }
     if (R_FAILED(romfsInit())) { printf("Could not mount patcher assets.\n"); goto exit_wait; }
+    updated=updater_check(launch_path);
+    if (updated) goto exit_assets;
     Result detect_result=0;
     int region=detect_region(&detect_result);
     if (region<0) {
@@ -557,39 +661,67 @@ int main(void) {
         if (envIsHomebrew()) printf("If NAND title access is denied, use the CIA build.\n");
         goto exit_assets;
     }
-    detected_active_patch=detected_active_patch || patch_files_active((unsigned)region);
-    printf("Detected region: %s\nTitle: %016llX\n\n",regions[region].name,(unsigned long long)regions[region].base_title);
-    if (detected_active_patch) {
-        printf("The patch is already active.\nA  Remove patch\nY  Add SD certificates\nL  Remove imported certificates\nX  Uninstall patcher CIA\nB or START  Keep patch and exit\n");
-        while (aptMainLoop()) {
+    const char *last_status=NULL;
+    while (aptMainLoop() && !patcher_uninstalled && !updated) {
+        /* Only current SD files determine installed state, not the mounted title or previous actions. */
+        detected_active_patch=false; detected_legacy_patch=false;
+        detected_active_patch=patch_files_active((unsigned)region);
+        printf("\x1b[2J\x1b[1;1HSKATER+ Patcher\nBuild: %s\n\nRegion: %s\n",PATCHER_BUILD,regions[region].name);
+        if (last_status) printf("%s\n",last_status);
+        printf(detected_active_patch ? "Patch files detected.\n\n" : "Patch not installed.\n\n");
+        printf("Updates: %s\n\n",updater_status());
+        printf("A  Install/update browser patch\n");
+        if (detected_active_patch) {
+            printf("Y  Remove browser patch\n");
+            if (!detected_legacy_patch) printf("L  Add SD certificates\nR  Remove imported certificates\n");
+        }
+        printf("X  Uninstall patcher CIA\nSELECT  Check patcher updates\nB or START  Exit\n");
+        bool refresh=false,exit_menu=false;
+        while (aptMainLoop() && !refresh) {
             hidScanInput(); u32 down=hidKeysDown();
-            if (down&(KEY_B|KEY_START)) break;
-            if (down&KEY_A) { remove_active_patch((unsigned)region); break; }
-            if (down&KEY_Y) { import_roots((unsigned)region); break; }
-            if (down&KEY_L) { remove_extra_roots((unsigned)region); break; }
-            if (down&KEY_X) { maybe_self_delete(); break; }
+            if (down&(KEY_B|KEY_START)) { exit_menu=true; break; }
+            if (down&KEY_A) {
+                int rc=detected_active_patch ? update_browser_patch((unsigned)region) : install_patch((unsigned)region);
+                last_status=rc ? "Install/update failed." : "Install/update complete.";
+                if (!rc) { if (!envIsHomebrew()) maybe_self_delete(); }
+                else wait_for_menu();
+                refresh=true;
+            } else if ((down&KEY_Y) && detected_active_patch) {
+                printf("\nA  Confirm patch removal\nB  Cancel\n");
+                while (aptMainLoop()) {
+                    hidScanInput(); u32 confirm=hidKeysDown();
+                    if (confirm&KEY_B) break;
+                    if (confirm&KEY_A) {
+                        int rc=remove_active_patch((unsigned)region);
+                        last_status=rc ? "Patch removal failed." : "Patch removed.";
+                        wait_for_menu(); break;
+                    }
+                    gspWaitForVBlank();
+                }
+                refresh=true;
+            } else if ((down&KEY_L) && detected_active_patch && !detected_legacy_patch) {
+                import_roots((unsigned)region); wait_for_menu(); refresh=true;
+            } else if ((down&KEY_R) && detected_active_patch && !detected_legacy_patch) {
+                remove_extra_roots((unsigned)region); wait_for_menu(); refresh=true;
+            } else if (down&KEY_SELECT) {
+                updated=updater_check(launch_path); if (!updated) wait_for_menu(); refresh=true;
+            } else if (down&KEY_X) {
+                maybe_self_delete(); refresh=true;
+            }
             gspWaitForVBlank(); gfxFlushBuffers(); gfxSwapBuffers();
         }
-        goto detected_done;
+        if (exit_menu) break;
     }
-    printf("A  Install/update patch\nX  Uninstall patcher CIA\nSTART  Exit\n");
-    while (aptMainLoop()) {
-        hidScanInput(); u32 down=hidKeysDown();
-        if (down&KEY_START) break;
-        if (down&KEY_A) { if (!install_patch((unsigned)region)) maybe_self_delete(); break; }
-        if (down&KEY_X) { maybe_self_delete(); break; }
-        gspWaitForVBlank(); gfxFlushBuffers(); gfxSwapBuffers();
-    }
-detected_done:
     pxi_romfs_close();
+    if (!updated && !patcher_uninstalled) { romfsExit(); goto exit_now; }
 exit_assets: romfsExit();
 exit_wait: printf("\nPress START to exit.\n");
-    if (!envIsHomebrew() && !patcher_uninstalled) printf("X  Uninstall patcher CIA\n");
+    if (!envIsHomebrew() && !patcher_uninstalled && !updated) printf("X  Uninstall patcher CIA\n");
     while (aptMainLoop()) {
         hidScanInput(); u32 down=hidKeysDown();
         if (down&KEY_START) break;
-        if ((down&KEY_X) && !envIsHomebrew() && !patcher_uninstalled) maybe_self_delete();
+        if ((down&KEY_X) && !envIsHomebrew() && !patcher_uninstalled && !updated) maybe_self_delete();
         gspWaitForVBlank();
     }
-    gfxExit(); return 0;
+exit_now: gfxExit(); return 0;
 }

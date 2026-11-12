@@ -62,10 +62,10 @@ int ec_verify_digest_point(unsigned bits, const unsigned char *point,
 }
 
 /* Inputs are the original signed TBS DER, DER-encoded ECDSA signature,
- * and the issuer's uncompressed secp384r1 public point. This form can be
+ * and the issuer's uncompressed P-256/P-384 public point. This form can be
  * populated from OpenSSL 1.0.2's cached ASN1_ENCODING and X509_PUBKEY,
  * without asking its unsupported EC decoder to construct an EVP_PKEY. */
-int ec_verify_certificate_signature_parts(unsigned bits,
+int ec_verify_certificate_signature_parts(unsigned bits, unsigned digest_bits,
                                           const unsigned char *tbs, size_t tbs_len,
                                           const unsigned char *sig, size_t sig_len,
                                           const unsigned char *point, size_t point_len)
@@ -76,7 +76,8 @@ int ec_verify_certificate_signature_parts(unsigned bits,
     int valid = 0;
     mbedtls_ecdsa_init(&ec);
     if (!tbs || !sig || !point || !tbs_len || tbs_len > 16384 ||
-        !sig_len || sig_len > 256 ||
+        !sig_len || sig_len > 144 ||
+        !(digest_bits == 256 || digest_bits == 384 || digest_bits == 512) ||
         !((bits == 256 && point_len == 65) ||
           (bits == 384 && point_len == 97)) || point[0] != 4)
         goto done;
@@ -85,10 +86,10 @@ int ec_verify_certificate_signature_parts(unsigned bits,
         mbedtls_ecp_point_read_binary(&ec.grp, &ec.Q, point, point_len) != 0 ||
         mbedtls_ecp_check_pubkey(&ec.grp, &ec.Q) != 0)
         goto done;
-    if (bits == 256 ? mbedtls_sha256_ret(tbs, tbs_len, hash, 0) != 0 :
-                      mbedtls_sha512_ret(tbs, tbs_len, hash, 1) != 0)
+    if (digest_bits == 256 ? mbedtls_sha256_ret(tbs, tbs_len, hash, 0) != 0 :
+                            mbedtls_sha512_ret(tbs, tbs_len, hash, digest_bits == 384) != 0)
         goto done;
-    valid = mbedtls_ecdsa_read_signature(&ec, hash, bits == 256 ? 32 : 48,
+    valid = mbedtls_ecdsa_read_signature(&ec, hash, digest_bits / 8,
                                          sig, sig_len) == 0;
 done:
     mbedtls_ecdsa_free(&ec);

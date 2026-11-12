@@ -2,8 +2,6 @@
 
 [日本語](CERTIFICATES.ja.md)
 
-SKATER+ keeps certificate-signature and hostname verification enabled.
-
 The stock browser can parse many modern chains but lacks some EC operations
 and current trust anchors. SKATER+ therefore:
 
@@ -17,29 +15,26 @@ and current trust anchors. SKATER+ therefore:
 1. Put a self-signed CA certificate in `sd:/3ds/skater-plus-patcher/certs/`.
    Use PEM encoding, one certificate per file, with a lowercase `.pem` or `.crt`
    extension. DER files, private keys and certificate chains are rejected.
-2. Open the patcher after installing SKATER+ and press **Y**.
+2. Open the patcher after installing SKATER+ and press **L**.
 3. Check the subject and DER SHA-256 fingerprint against the CA's published
    information. Press **A** to trust the root or **B** to skip it.
 4. Close and reopen the browser.
 
 Mbed TLS checks the CA flag, certificate-signing usage, and self-signature.
-These checks establish a valid CA certificate, not whether its owner deserves
-your trust. Imported roots apply to all sites visited in this browser.
+Imported roots apply to all sites visited in this browser. Add only CAs you trust.
 Duplicates are skipped. The limit is four extra roots, 8 KiB per input file,
-and 16 KiB total. This conservative limit accounts for the browser's small
-heap; it is not a measured guarantee for every certificate.
+and 16 KiB total.
 
-The patcher records hashes of the updated bundle so patch detection and removal
-continue to work. Removing SKATER+ also removes the imported roots from the
+Removing SKATER+ also removes the imported roots from the
 browser. Source files in `certs/` are kept for later import.
 
-To remove one imported root, press **L** in the patcher, select it with
+To remove one imported root, press **R** in the patcher, select it with
 **UP/DOWN**, check the subject and fingerprint, and press **A**. Built-in roots
 and other imported roots are preserved. Reopen the browser afterward.
 
 ## Added roots
 
-The hardware-tested bundle adds these 25 roots:
+v0.1.1 adds these 26 roots. DigiCert Global Root G3 is new since v0.1.0.
 
 - Security Communication RootCA2
 - COMODO RSA Certification Authority
@@ -56,6 +51,7 @@ The hardware-tested bundle adds these 25 roots:
 - GlobalSign Root R46
 - HARICA TLS RSA Root CA 2021
 - GTS Root R1
+- DigiCert Global Root G3
 - DigiCert TLS RSA4096 Root G5
 - Sectigo Public Server Authentication Root R46
 - Sectigo Public Server Authentication Root E46
@@ -67,12 +63,4 @@ The hardware-tested bundle adds these 25 roots:
 - OISTE Server Root RSA G1
 - Telia RSA TLS Root CA v3
 
-Mbed TLS does **not** handle sockets, HTTP, TLS state, or the full connection.
-It supplements the bundled OpenSSL 1.0.2 only where EC support is missing,
-preserving SKATER's existing OpenSSL ABI and network path. The exact
-certificate inputs and hashes are pinned by
-`scripts/build_rootca_bundle.ps1`. Sources and licenses are recorded in
-`vendor/root-certificates/README.md` and `THIRD_PARTY_NOTICES.md`.
-
-Adding a root only establishes a trust anchor. It does not bypass expiry,
-hostname, chain-signature, protocol, or cipher checks.
+The [root certificate sources](../vendor/root-certificates/README.md) and [third-party notices](../THIRD_PARTY_NOTICES.md) list provenance and licenses. The source hashes are pinned in `scripts/build_rootca_bundle.ps1`.

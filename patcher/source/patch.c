@@ -1,7 +1,6 @@
 #include "patch.h"
 #include "sha256.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -39,20 +38,26 @@ int lz11_decompress(const uint8_t *in, size_t in_size, uint8_t **outp, size_t *o
 invalid: free(out); return -1;
 }
 
-int lz11_write_literals(const char *path, const uint8_t *data, size_t size) {
+int lz11_pack_literals(const uint8_t *data, size_t size, uint8_t **packed, size_t *packed_size) {
     if (size>0xffffff) return -1;
-    FILE *f=fopen(path,"wb"); if (!f) return -2;
-    uint8_t header[4]={0x11,(uint8_t)size,(uint8_t)(size>>8),(uint8_t)(size>>16)};
-    if (fwrite(header,1,4,f)!=4) goto io;
+    const size_t header_size=size ? 4 : 8;
+    const size_t total=header_size+size+(size+7)/8;
+    uint8_t *out=malloc(total);
+    if (!out) return -2;
+    const uint8_t header[8]={0x11,(uint8_t)size,(uint8_t)(size>>8),(uint8_t)(size>>16)};
+    memcpy(out,header,header_size);
+    size_t used=header_size;
     for (size_t pos=0;pos<size;) {
-        uint8_t flag=0; size_t take=size-pos; if (take>8) take=8;
-        if (fwrite(&flag,1,1,f)!=1 || fwrite(data+pos,1,take,f)!=take) goto io;
+        size_t take=size-pos;
+        if (take>8) take=8;
+        out[used++]=0;
+        memcpy(out+used,data+pos,take);
+        used+=take;
         pos+=take;
     }
-    if (fflush(f)!=0) goto io;
-    if (fclose(f)!=0) return -2;
+    *packed=out;
+    *packed_size=total;
     return 0;
-io: fclose(f); return -2;
 }
 
 int delta_apply(const uint8_t *p, size_t n, const uint8_t *source, size_t source_size,

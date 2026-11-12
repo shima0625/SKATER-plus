@@ -13,6 +13,7 @@ from pathlib import Path
 
 from build_regional_tls_packages import REGIONS, ROOT
 from verify_regional_tls_build import EXPECTED_IPS
+from build_update_manifest import write_manifest
 
 
 CRO = ROOT / "build" / "oss-skaterplus.cro.lex"
@@ -23,14 +24,15 @@ THIRD_PARTY_NOTICES = ROOT / "THIRD_PARTY_NOTICES.md"
 THIRD_PARTY_NOTICES_JA = ROOT / "THIRD_PARTY_NOTICES.ja.md"
 MBEDTLS_LICENSE = ROOT / "vendor" / "mbedtls" / "LICENSE"
 MICRO_ECC_LICENSE = ROOT / "vendor" / "micro-ecc" / "LICENSE.txt"
+OPENSSL_LICENSE = ROOT / "vendor" / "openssl-arm" / "LICENSE"
 DIST = ROOT / "dist"
 PATCHER_OUTPUTS = (
     ROOT / "patcher" / "skater-plus-patcher.3dsx",
     ROOT / "patcher" / "skater-plus-patcher.cia",
 )
-CRO_SHA256 = "6E56DEE5073BE333F6438C4C53C10EB26AC38AE064275B4931681179985B988D"
+CRO_SHA256 = "0DA1A8231272D7A7F09AD504D8701B7929AA5A4B1C1391500C36D46AC1351B47"
 CRR_SHA256 = "86712C50A3E4C6256D8CC81A4B61331D6E9A1C46676941E0064289FF811F5422"
-ROOTCA_SHA256 = "77D8B6985442F74BDAD3655FD16D871BAFC0240AB4CF0B2902F1E089FCEB6865"
+ROOTCA_SHA256 = "35BE1BEB9AC3B17F128C16792DAE3CE0FBE0230A7C8AA2D47E500084F4F7E7F0"
 ZIP_TIME = (2026, 10, 23, 0, 0, 0)
 
 
@@ -93,6 +95,7 @@ def main() -> None:
             "SKATER-plus/THIRD_PARTY_NOTICES.ja.md": THIRD_PARTY_NOTICES_JA.read_bytes(),
             "SKATER-plus/LICENSES/Mbed-TLS.txt": MBEDTLS_LICENSE.read_bytes(),
             "SKATER-plus/LICENSES/micro-ecc.txt": MICRO_ECC_LICENSE.read_bytes(),
+            "SKATER-plus/LICENSES/OpenSSL.txt": OPENSSL_LICENSE.read_bytes(),
         }
         for region, metadata in REGIONS.items():
             ips = checked(ROOT / "patches" / region / "code.ips", EXPECTED_IPS[region])
@@ -117,6 +120,7 @@ def main() -> None:
         shutil.copyfile(source, output)
         digest = sha256(output.read_bytes())
         print(f"PASS patcher {output.name} sha256={digest}")
+    print(f"PASS updater metadata {write_manifest(DIST).name}")
 
 
 if __name__ == "__main__":

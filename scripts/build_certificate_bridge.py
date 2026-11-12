@@ -1,6 +1,6 @@
 """Integrate P-256/P-384 certificate verification with the TLS CRO.
 
-Builds the hardware-tested final module without SD/FTP writes. Refuses
+Builds the local test module without SD/FTP writes. Refuses
 unexpected ELF, CRO, hook bytes, absolute pointers, or structure changes.
 """
 from __future__ import annotations
@@ -20,15 +20,13 @@ ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / "build" / "oss-tls12.cro"
 BASE_LEX = ROOT / "build" / "oss-tls12.cro.lex"
 EC_MODE = True
-if sys.argv[1:]:
-    raise SystemExit("usage: build_certificate_bridge.py")
 ELF = ROOT / "payload" / "certificate-bridge" / "ec_bridge.elf"
 OUT = ROOT / "build" / "oss-skaterplus.cro"
 OUT_LEX = ROOT / "build" / "oss-skaterplus.cro.lex"
 EXPECTED_LEX = "48A5882C7A31B1365160468808695587DC58AF977F7AEDD08A8B115772D3BC9A"
-EXPECTED_ELF = "7F5196A504BB340F37801A88D697BA8C016F70358B1A151C5F10633D429D6FD3"
-EXPECTED_RAW = "EBECAE6102C521D86124E9154695F4E787B8ED336D1184C3632793232DE05214"
-EXPECTED_OUTPUT_LEX = "6E56DEE5073BE333F6438C4C53C10EB26AC38AE064275B4931681179985B988D"
+EXPECTED_ELF = "0A089C9275394D81BC62661951560ADE9EEB368E6973AAE7CFBD5DAA560492C1"
+EXPECTED_RAW = "0EBEC4B34E28179B70AEA23EB361DEE3760F82C1482CB3F14DBE6B6960048ADA"
+EXPECTED_OUTPUT_LEX = "D48122075C2F5996F77421842C24AD710FB3C99B7C2697CFBFDFCC9FB36384C7"
 
 
 def u32(data: bytes | bytearray, offset: int) -> int:
@@ -171,6 +169,8 @@ def append_relocations(cro: bytearray, records: list[tuple[int, int, int]],
 
 
 def main() -> None:
+    if sys.argv[1:]:
+        raise SystemExit("usage: build_certificate_bridge.py")
     source = BASE.read_bytes()
     packed = BASE_LEX.read_bytes()
     if hashlib.sha256(packed).hexdigest().upper() != EXPECTED_LEX or decompress(packed) != source:
@@ -183,7 +183,7 @@ def main() -> None:
     bss = sections.get(".bss", {"addr": 0, "size": 0})
     if first != 0x146B00 or bss["size"] > 0x100:
         raise ValueError("ELF is linked for the wrong CRO image")
-    included = [sections[name] for name in (".text", ".rodata", ".data")]
+    included = [sections[name] for name in (".text", ".rodata", ".data") if name in sections]
     image_end = max(s["addr"] + s["size"] for s in included)
     image = bytearray(image_end - first)
     for s in included:

@@ -2,17 +2,10 @@
 
 [日本語](README.ja.md)
 
+SKATER+ adds TLS 1.2, root certificates, and website compatibility fixes to the New Nintendo 3DS Internet Browser. Luma3DS loads the patch from the SD card when the browser starts.
+
 > [!CAUTION]
-> **Most of this project's code and documentation was created with generative
-> AI assistance.** JPN has been tested on real hardware, but users should review
-> the source and generated files with that disclosure in mind. Other regions
-> remain experimental.
-
-Compatibility patch for the **New Nintendo 3DS Internet Browser (SKATER)**.
-It adds modern TLS 1.2 support, current root certificates, website fixes, and
-a Japanese first-run registration fix.
-
-Luma3DS applies the patch from the SD card at launch.
+> **Most of the code and documentation were created with generative AI assistance.**
 
 ## Download
 
@@ -25,71 +18,34 @@ Luma3DS applies the patch from the SD card at launch.
 
 - TLS 1.2 with ECDHE-RSA/ECDHE-ECDSA AES-GCM.
 - P-256/P-384 certificate and handshake-signature verification.
-- [25 additional root certificates](docs/CERTIFICATES.md).
+- [26 additional root certificates](docs/CERTIFICATES.md).
 - Import your own root certificates from SD with the patcher.
 - iOS 7-era mobile Safari user agent and HTTPS Google search.
-- Official JPN first-run setup fix.
+- Japanese first-run setup fix, confirmed on hardware with unmodified save data.
 
-Google search currently requires signing in. The stock iOS 6 user agent is
-rejected; the patched iOS 7-era user agent works in the tested signed-in path.
+Google treats the stock iOS 6 user agent as unsupported. Search was confirmed while signed in with the patched iOS 7-era user agent.
 
 ## How it works
 
-```text
-SKATER launch
-  -> code.ips changes file names, UA, Google URL, and JPN first-run logic
-  -> Luma loads os2.cro.lex instead of the stock OpenSSL CRO
-  -> tlsfix.crr authorizes the redirected CRO identity
-  -> patched CRO sends a modern TLS 1.2 ClientHello and performs ECDHE
-  -> certificate bridge verifies P-256/P-384 chains
-  -> updated rootca.pem supplies current trust anchors
-```
+`code.ips` changes the browser's crypto module filename, user agent, Google search URL, and Japanese first-run registration. Luma3DS loads the patched OpenSSL module `os2.cro.lex` and its module identity file, `tlsfix.crr`.
 
-SKATER's bundled OpenSSL 1.0.2 still handles transport, TLS state, and ordinary
-certificate validation. Mbed TLS supplies only the EC public-key parsing and
-P-256/P-384 ECDSA operations missing from that build. This preserves SKATER's
-existing TLS path and ABI instead of replacing the whole stack.
+The browser's OpenSSL 1.0.2 module handles TLS. Mbed TLS supplies P-256/P-384 public-key parsing and ECDSA signature verification. The added certificate authorities are stored in `rootca.pem`.
 
-Four existing cipher-table records are repurposed for ECDHE. That makes the
-table non-monotonic, so only the cipher-ID lookup changes from binary search to
-a bounded linear scan of at most 71 records. The worst-case comparison count
-increases, but this is a small fixed table and not a bulk-data path. Cipher IDs
-are public, so position-dependent lookup time does not expose secret material.
-
-The JPN first-run fix still uses Nintendo's official `sec.ifilter.jp` service.
-It uses HTTP because the stock system registration client cannot negotiate the
-current HTTPS endpoint. The one-time device identifier and response are not
-encrypted, so use a trusted network.
-
-## TLS 1.3
-
-TLS 1.3 is not a practical incremental extension of this patch. SKATER's
-bundled OpenSSL code implements the older TLS state machine. TLS 1.3 changes ClientHello,
-key scheduling, handshake messages, transcript handling, and record keys.
-Adding it would mean replacing most of the TLS transport with OpenSSL 1.1.1+
-or a newer Mbed TLS stack, then integrating that stack with SKATER's socket,
-memory, threading, and certificate interfaces.
-
-The current work already expands the CRO and hooks functions, cipher records,
-ECDHE, and certificate handling, but it preserves the old state machine and
-ABI. TLS 1.3 would replace that foundation and reconnect a newer stack to
-SKATER's sockets, allocator, threads, CRO ABI, and certificate UI. It is a
-separate project with substantial RAM, code-size, and stability risk.
-Improving TLS 1.2 coverage is the realistic scope of SKATER+.
-See the official [OpenSSL TLS documentation](https://docs.openssl.org/1.1.1/man7/ssl/)
-and [Mbed TLS TLS 1.3 architecture](https://github.com/Mbed-TLS/mbedtls/blob/development/docs/architecture/tls13-support.md).
+Japanese first-run registration connects to `sec.ifilter.jp` over HTTP. Use a trusted network for setup because the device identifier and response are sent unencrypted.
 
 ## Compatibility
 
 | Region | Luma title folder | Status |
 | --- | --- | --- |
 | JPN | `0004003000008802` | Real hardware: first-run, Wikipedia, Google, Yahoo, certificates and mobile UA confirmed |
-| USA | `0004003000009402` | Launch/UA confirmed in Azahar; TLS needs real hardware |
+| USA | `0004003000009402` | Community hardware report: region detection, install, Wikipedia and Yahoo.com work (v0.1.0) |
 | KOR | `000400300000AE02` | Launch/UA confirmed in Azahar; TLS needs real hardware |
-| EUR/AUS | `0004003000009D02` | Launch/UA confirmed in Azahar; TLS needs real hardware |
+| EUR/AUS | `0004003000009D02` | EUR community hardware report: region detection, install, Wikipedia and Yahoo work (v0.1.0) |
+
+USA/EUR results are [community reports](https://www.reddit.com/r/3dshomebrew/comments/1xhlyu2/). The TLS optimizations were tested on JPN hardware; USA/EUR retesting is pending.
 
 China/Taiwan and Old Nintendo 3DS SPIDER are outside this project's scope.
-See [the full test record](docs/COMPATIBILITY.md).
+See [regional compatibility](docs/COMPATIBILITY.md).
 
 ## Install
 
@@ -98,15 +54,14 @@ update, and an up-to-date Luma3DS release.
 
 1. Boot while holding <kbd>Select</kbd>, enable **Enable game patching**, and
    save with <kbd>Start</kbd>. The patcher also checks this setting at startup.
-2. Launch `skater-plus-patcher.cia` from HOME Menu, or
-   `skater-plus-patcher.3dsx` from Homebrew Launcher.
+2. Install the CIA and launch **SKATER+ Patcher** from HOME Menu, or open the 3DSX from Homebrew Launcher.
 3. Press <kbd>A</kbd>. The patcher detects JPN, USA, EUR/AUS, or KOR, reads
    the official browser files, verifies them, and builds the Luma patch on SD.
 4. CIA users can choose whether to keep or uninstall the patcher. Exit normally
    when using the 3DSX build.
 5. Launch the browser and test the sites you want to use.
 
-Launch the patcher again and choose **Remove patch** to delete SKATER+ files.
+Launch the patcher again and press <kbd>Y</kbd>, then <kbd>A</kbd> to confirm to delete SKATER+ files.
 A reboot is not required after removal. If matching paths already contain
 other files, the patcher keeps backup copies but does not restore them
 automatically.
@@ -116,9 +71,48 @@ installing the patch and from an error screen.
 
 To add a root certificate, place one PEM certificate per `.pem` or `.crt` file
 in `sd:/3ds/skater-plus-patcher/certs/`. Launch the patcher with the patch
-installed, press <kbd>Y</kbd>, and confirm each root's subject and SHA-256
+installed, press <kbd>L</kbd>, and confirm each root's subject and SHA-256
 fingerprint. See [Certificates](docs/CERTIFICATES.md#adding-your-own-roots).
-Press <kbd>L</kbd> to select and remove an imported root certificate.
+Press <kbd>R</kbd> to select and remove an imported root certificate.
+
+## Updates
+
+At startup the patcher checks the latest stable tag with one HTTPS HEAD request.
+It does not download release metadata unless you accept a newer version.
+Press <kbd>Select</kbd> to check again.
+An unavailable network does not prevent normal patch installation.
+
+After updating, exit and reopen the patcher. If an older browser patch is
+installed, press <kbd>A</kbd> to update it directly. Registered extra certificates
+are preserved, and recognized older layouts are migrated automatically.
+CIA updates replace the installed patcher; 3DSX updates replace its HBL launch
+path after download verification. The first upgrade from v0.1.0 must be installed manually.
+
+On JPN hardware, the startup update check took 1.62 seconds. Applying the patch with SD writes took 5.19 seconds, and reapplying an unchanged patch took 2.42 seconds.
+
+## TLS performance
+
+### Certificate verification
+
+TLS connection setup was measured on a Japanese New 3DS using a local server. Measurements that reused a TLS session were excluded.
+
+| Issuer key / connection authentication | Before | After | Reduction |
+| --- | ---: | ---: | ---: |
+| P-256 / RSA | 916 ms | 402 ms | 56.0% |
+| P-256 / ECDSA | 1,311 ms | 312 ms | 76.2% |
+| P-384 / RSA | 1,558 ms | 320 ms | 79.4% |
+| P-384 / ECDSA | 2,174 ms | 427 ms | 80.4% |
+
+### AES-GCM
+
+On the same console, the 1 MiB transfer was timed from the first receive progress notification to completion. The table shows the median for each condition.
+
+| Connection authentication / cipher | Before | After | Reduction |
+| --- | ---: | ---: | ---: |
+| RSA / AES-128-GCM | 573 ms | 454.5 ms | 20.7% |
+| RSA / AES-256-GCM | 637 ms | 482 ms | 24.3% |
+| ECDSA / AES-128-GCM | 602 ms | 486 ms | 19.3% |
+| ECDSA / AES-256-GCM | 603 ms | 523.5 ms | 13.2% |
 
 ## Screenshots
 
@@ -129,23 +123,16 @@ Press <kbd>L</kbd> to select and remove an imported root certificate.
 ## Building
 
 Building the patcher uses the included runtime assets. Regenerating the browser
-patches requires personally dumped browser files. See [BUILDING](docs/BUILDING.md),
-[CERTIFICATES](docs/CERTIFICATES.md).
+patches requires personally dumped browser files. See the [build guide](docs/BUILDING.md).
 
-## Limitations
+## Reporting issues
 
-- Only JPN has completed real-hardware testing.
-- Modern JavaScript, HTML/CSS, codecs, or unsupported TLS features can still
-  prevent a site from working.
-- Google behavior is server-controlled and can change.
+Site compatibility depends on the browser's JavaScript, HTML/CSS, codecs, and TLS support.
 
-When reporting a result, include console region/model, system and Luma
-versions, title ID, URL, error code, and whether the site works unpatched.
-Never upload browser dumps.
+Include your console model and region, system and Luma3DS versions, browser title ID, URL, error code, and the result before applying the patch.
 
 ## Credits and license
 
 Thanks to Luma3DS, OpenSSL, Mbed TLS, micro-ecc, and the 3DS reverse-engineering
 community. Original code is MIT licensed. Third-party terms are listed in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). No listed project endorses
-SKATER+.
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

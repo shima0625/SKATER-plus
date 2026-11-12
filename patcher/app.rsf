@@ -70,8 +70,8 @@ AccessControlInfo:
   RunnableOnSleep: false
   SpecialMemoryArrange: false
   SystemModeExt: Legacy
-  CpuSpeed: 268MHz
-  EnableL2Cache: false
+  CpuSpeed: 804MHz
+  EnableL2Cache: true
   CanAccessCore2: false
   SystemCallAccess:
     ArbitrateAddress: 34
@@ -132,6 +132,9 @@ AccessControlInfo:
    - fs:USER
    - gsp::Gpu
    - hid:USER
+   - soc:U
+   - ssl:C
+   - ptm:sysm
 SystemControlInfo:
   SaveDataSize: 0KB
   RemasterVersion: 0
@@ -140,3 +143,6 @@ SystemControlInfo:
     am: 0x0004013000001502
     gsp: 0x0004013000001c02
     hid: 0x0004013000001d02
+    soc: 0x0004013000002e02
+    ssl: 0x0004013000002f02
+    ptm: 0x0004013000002202

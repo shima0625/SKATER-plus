@@ -1,0 +1,23 @@
+diff --git a/src/user_settings.c b/src/user_settings.c
+--- a/src/user_settings.c
++++ b/src/user_settings.c
+@@ -1,6 +1,10 @@
+ #include "lib.h"
+ #include "version.h"
+ 
++enum { TOOL_VERSION_MAJOR = VER_MAJOR, TOOL_VERSION_MINOR = VER_MINOR };
++#undef VER_MAJOR
++#undef VER_MINOR
++
+ // Private Constants
+ static const u32 DEFAULT_STACK_SIZE = 0x1000;
+ 
+@@ -933,7 +937,7 @@ void PrintNoNeedParam(char *arg)
+ 
+ void DisplayBanner(void)
+ {
+-	printf("%s v%d.%d.%d (C) %s\n", APP_NAME, VER_MAJOR, VER_MINOR, VER_PATCH, AUTHORS);
++	printf("%s v%d.%d.%d (C) %s\n", APP_NAME, TOOL_VERSION_MAJOR, TOOL_VERSION_MINOR, VER_PATCH, AUTHORS);
+ 	printf("Built: %s %s\n\n", __TIME__, __DATE__);
+ }
+ 

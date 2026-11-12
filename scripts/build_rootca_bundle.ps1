@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $expectedStockSha = '3D7E053FB7B8AD425AB7C0AE4523B837163CA9D436F8BFE43C8FE730636D04E2'
 $expectedMozillaSha = 'A41B5D356AEA97A529FE27E0F7316D2F9D946D75927476CF9CF1B90637D00505'
 $expectedE46Sha = '808130157F570B7640069852C88E256738007811A64C3AA9A4C31038347DC19C'
-$expectedOutputSha = '77D8B6985442F74BDAD3655FD16D871BAFC0240AB4CF0B2902F1E089FCEB6865'
+$expectedOutputSha = '35BE1BEB9AC3B17F128C16792DAE3CE0FBE0230A7C8AA2D47E500084F4F7E7F0'
 
 function Assert-Sha256([string] $Path, [string] $Expected, [string] $Label) {
     $actual = [Convert]::ToHexString(
@@ -45,6 +45,7 @@ $wantedSubjects = @(
     'GlobalSign Root R46',
     'HARICA TLS RSA Root CA 2021',
     'GTS Root R1',
+    'DigiCert Global Root G3',
     'DigiCert TLS RSA4096 Root G5',
     'Sectigo Public Server Authentication Root R46',
     'SSL.com TLS RSA Root CA 2022',

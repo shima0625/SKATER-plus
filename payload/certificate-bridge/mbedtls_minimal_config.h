@@ -6,6 +6,10 @@
 #define MBEDTLS_ASN1_WRITE_C
 #define MBEDTLS_BIGNUM_C
 #define MBEDTLS_ECP_C
+/* Use curve-specific prime reduction instead of generic MPI division. */
+#define MBEDTLS_ECP_NIST_OPTIM
+/* This component verifies public signatures; it never generates keys/signs. */
+#define MBEDTLS_ECP_NO_INTERNAL_RNG
 #define MBEDTLS_ECP_DP_SECP256R1_ENABLED
 #define MBEDTLS_ECP_DP_SECP384R1_ENABLED
 #define MBEDTLS_ECDSA_C
